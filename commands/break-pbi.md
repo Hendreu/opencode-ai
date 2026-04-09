@@ -2,171 +2,193 @@
 description: Lê o PBI.md e quebra em tasks com checkpoints, progresso e arquivos de acompanhamento
 ---
 
-Você é um agente de planejamento técnico. Sua missão é ler o PBI.md localizado em `.ignore/PBI.md` (ou na raiz do projeto se não encontrar em `.ignore/`) e transformá-lo em um conjunto estruturado de tasks executáveis.
+Você é um agente de planejamento técnico. Leia o PBI.md em `.ignore/PBI.md` (ou raiz se não encontrar) e transforme em tasks executáveis.
 
-## PASSO 1 — Leitura e análise
+**Regra fundamental:** Cada task será executada por um agente **sem acesso ao seu contexto**. Tudo que ele precisa DEVE estar no arquivo da task.
 
-Leia o arquivo PBI.md. Entenda:
-- O objetivo principal
-- As funcionalidades exigidas
-- As regras de negócio
-- O que é escopo atual vs futuro
+---
 
-## PASSO 2 — Análise do projeto existente
+## PASSO 1 — Leitura do PBI
 
-Antes de criar qualquer task, você DEVE investigar o projeto atual para:
+Leia o PBI.md e extraia:
+- Objetivo principal
+- Funcionalidades exigidas (todas)
+- Regras de negócio
+- Escopo atual vs fora de escopo
+- Entidades/conceitos de domínio (nomes exatos)
 
-**Backend:**
-- Ver como os modelos estão estruturados (padrões de herança, campos padrão, multi-tenancy)
-- Ver como os serializers são escritos (campos, validações, campos calculados)
-- Ver como os ViewSets são criados e quais mixins/permissões são usados
-- Ver como as URLs são registradas no roteador principal
-- Ver como as tasks assíncronas são criadas (Celery? Prefect? outro?)
-- Ver como o sistema de email já funciona
-- Identificar modelos e serviços reutilizáveis para o escopo do PBI
+Se houver ambiguidade, tome uma decisão explícita e registre.
 
-**Frontend:**
-- Ver como os hooks de React Query são escritos (`hooks/` folder)
-- Identificar quais helper functions são usados (`defaultQueryFetch`, `defaultMutationFetch` ou outros)
-- Ver como os componentes são estruturados (presentational vs container)
-- Ver como os formulários são criados (Form system, campos, validação Yup)
-- Identificar páginas e componentes existentes que devem ser modificados/estendidos
-- Ver como a navegação e as abas são implementadas nos dashboards existentes
+---
 
-Use essa análise para garantir que as tasks gerem código consistente com o projeto.
+## PASSO 2 — Análise do projeto (captura de padrões)
+
+Investigue o projeto para capturar padrões. Para cada padrão encontrado, anote **apenas o caminho do arquivo e a linha/função de referência** — NÃO copie blocos inteiros de código nas tasks. O agente executor usará o caminho como referência para consultar o padrão.
+
+### O que investigar (apenas o que for relevante ao PBI):
+
+**Backend:** Modelos (herança, campos padrão, multi-tenancy), Serializers, ViewSets/Views, URLs (router/urlpatterns), Services/lógica, Tasks assíncronas, Testes (framework, factories)
+
+**Frontend:** Hooks de API (React Query), Componentes (padrão de arquivos), Formulários (validação), Navegação (rotas, sidebar), Tipos TypeScript, Testes
+
+**Infra:** Permissões, Multi-tenancy, Variáveis de ambiente
+
+**Output:** Uma lista de `arquivo:função/classe` para cada padrão relevante. Isso irá para "Padrões de Referência" nas tasks.
+
+---
 
 ## PASSO 3 — Quebra em tasks
 
-Divida o PBI em tasks. Cada task deve:
-- Ser independente o suficiente para ser executada por um agente sem contexto das outras
-- Ter escopo claro e delimitado — nada fora do PBI
-- Ser pequena o suficiente para ser concluída em uma única sessão
-- Ter dependências explicitadas quando existirem
+### Granularidade:
+- ~3-8 checkpoints por task (menos = agrupe, mais = quebre)
+- Backend e frontend juntos se simples, separados se complexo
 
-Nomenclatura dos arquivos: `TASK-01-NOME-CURTO.md`, `TASK-02-NOME-CURTO.md`, etc.
-Local: salvar em `.ignore/`
+### Independência:
+- Cada task auto-contida — executável lendo APENAS aquele arquivo
+- Se Task B depende de Task A, descreva **exatamente** o que Task A produz (nomes, endpoints, tipos)
 
-**Exemplos de divisão típica (adapte ao PBI):**
-- Task de modelos de banco de dados
-- Task de API backend (CRUD)
-- Task de lógica de negócio / cálculo / processamento
-- Task de frontend (hooks + componentes)
-- Task de notificações / integrações
-- Task de testes
+### Ordenação:
+- Models/migrations primeiro → APIs → Frontend → Testes
+- Numere na ordem de execução: `TASK-01-NOME.md`, `TASK-02-NOME.md`
+- Local: `.ignore/`
 
-## PASSO 4 — Estrutura de cada arquivo TASK-XX.md
+---
 
-Cada arquivo de task DEVE conter:
+## PASSO 4 — Estrutura de cada TASK-XX.md
 
 ```markdown
 # Task XX: [Título]
 
 ## Objetivo
-[Uma linha clara do que essa task entrega]
+[Frase verificável — "foi feito? sim/não"]
 
-## Contexto do Projeto
-[O que foi encontrado no projeto existente que é relevante para essa task.
-Ex: "Os modelos herdam de CustomBaseTenantModel em common/models.py",
-"As URLs são registradas em api/urls.py usando DefaultRouter",
-"Os hooks usam defaultQueryFetch de new_base_hooks.ts"]
+## Contexto
+[Nomes ESPECÍFICOS: arquivos, classes, funções relevantes do projeto existente]
 
-## Diretrizes de Implementação
-- Tecnologias: [listar as que se aplicam a essa task]
-- Padrões a seguir: [listar os padrões encontrados na análise]
-- Reutilizar: [listar arquivos/classes/funções específicas a reutilizar]
-- NÃO fazer: [listar o que está fora do escopo]
+## Padrões de Referência
+[Para cada padrão relevante, apenas o ponteiro:]
+- Model base: `backend/common/models.py` → classe `CustomBaseTenantModel`
+- Serializer exemplo: `backend/app/serializers/example.py` → classe `ExampleSerializer`
+- Hook exemplo: `frontend/src/hooks/useExample.ts` → função `useExample`
+[O agente DEVE abrir esses arquivos e seguir o padrão encontrado]
 
-## Escopo Detalhado
-[Descrever exatamente o que deve ser criado/modificado, com nomes de arquivos,
-classes, campos, endpoints, componentes. Quanto mais específico, melhor.
-Nada que não esteja no PBI.]
+## Escopo
+### [Item — ex: Model Budget]
+- **Arquivo:** `caminho/exato` (criar/modificar)
+- **O que:** [Descrição precisa]
+- **Campos/Props:** [Lista com tipos]
+- **Validações:** [Se houver]
 
-## Checkpoints
-- [ ] Checkpoint 1 (verificável e específico)
-- [ ] Checkpoint 2
-- [ ] ...
+## Critérios de Aceite
+- [ ] [Condição verificável e binária]
+- [ ] [...]
 
-## Arquivos a Criar/Modificar
-- `caminho/do/arquivo.py` — [o que faz]
-- `caminho/do/outro.tsx` — [o que faz]
+## Validação
+```bash
+[Comandos exatos para verificar completude]
+`` `
+
+## Arquivos
+| Arquivo | Ação | O quê |
+|---------|------|-------|
+| `caminho` | Criar | ... |
+
+## NÃO Fazer
+- NÃO [erro previsível que IA cometeria]
 
 ## Dependências
-- Depende de: Task XX (se aplicável)
-- Necessário para: Task YY (se aplicável)
+- **Depende de:** Task XX — [o que precisa existir, com nomes concretos]
+- **Produz:** [o que outras tasks consomem, com nomes concretos]
 ```
 
-## PASSO 5 — Criar o arquivo progresso.md
+---
 
-Crie (ou sobrescreva) o arquivo `.ignore/progresso.md` com a seguinte estrutura:
+## PASSO 5 — Criar progresso.md
+
+Crie `.ignore/progresso.md`:
 
 ```markdown
 # Progresso — [Nome do PBI]
 
-## ⚠️ LEIA ANTES DE INICIAR QUALQUER TASK
-Sempre verifique a seção "O Que Já Foi Feito" antes de começar.
-Isso evita retrabalho e duplicação de tarefas já concluídas.
+## Antes de Iniciar Qualquer Task
+1. Leia "O Que Já Foi Feito" — evita retrabalho
+2. Leia "Problemas Conhecidos" — evita repetir erros
+3. Verifique "Próxima Task" — respeite a ordem
 
----
+## Glossário
+| Termo PBI | Código | Tipo | Local |
+|-----------|--------|------|-------|
+| Ex: Orçamento | `Budget` | Model | `backend/budgets/models.py` |
 
-## Decisões Técnicas Tomadas
-[Liste aqui as principais decisões de arquitetura tomadas durante o planejamento.
-Ex: "Usar Prefect ao invés de Celery para tasks assíncronas (padrão do projeto)",
-"BudgetModel herda de CustomBaseTenantModel por causa do multi-tenancy",
-"Aba Budgets adicionada no CloudCostDashboard existente conforme PBI"]
+## Decisões Técnicas
+| Decisão | Justificativa |
+|---------|---------------|
+| ... | ... |
 
----
+## Contratos Entre Tasks
+| Task | Produz | Consumido por |
+|------|--------|---------------|
+| TASK-01 | Model `Budget` (campos X,Y,Z) | TASK-02, TASK-04 |
 
-## Como Seguir
-[Instruções práticas para qualquer agente que retomar o trabalho.
-Ex: "Execute as tasks em ordem. Task 03 depende da Task 01.",
-"Para rodar migrações: cd backend && python manage.py migrate",
-"Para testar frontend: cd frontend && npm run test"]
-
----
-
-## Resumo das Tasks
-| Task | Título | Status | Checkpoints |
-|------|--------|--------|-------------|
+## Tasks
+| Task | Título | Status | Aceite |
+|------|--------|--------|--------|
 | TASK-01 | ... | pendente | 0/N |
-| TASK-02 | ... | pendente | 0/N |
-
----
 
 ## O Que Já Foi Feito
-[Seção atualizada a cada task concluída. Inicialmente vazia.]
+[Atualizado a cada task concluída]
 
----
+## Problemas Conhecidos
+| Problema | Task | Severidade |
+|----------|------|------------|
 
-## Tarefas Pendentes
-[Espelho dos checkpoints de cada task. Atualizar conforme progresso.]
-
-### TASK-01: [Título]
-- [ ] Checkpoint 1
-- [ ] Checkpoint 2
-
-### TASK-02: [Título]
-- [ ] Checkpoint 1
-
----
-
-## Histórico de Execução
-### Criação do Planejamento
-Data: [data de hoje]
-Decisões registradas acima.
-
----
-
-## Próxima Task a Executar
+## Próxima Task
 TASK-01 — [Título]
 ```
 
-## PASSO 6 — Regras finais
+---
 
-- NÃO invente funcionalidades que não estão no PBI
-- NÃO crie tasks para funcionalidades marcadas como "futuras" no PBI
-- SEMPRE referencie arquivos reais encontrados no projeto (não genéricos)
-- As tasks devem ser executáveis por um agente sem precisar perguntar nada
-- O progresso.md deve ser o único ponto de verdade sobre o estado do trabalho
-- Após criar todos os arquivos, liste um resumo do que foi criado e as decisões mais importantes tomadas
+## PASSO 6 — Criar ONDE-ENCONTRAR.md
+
+Crie `.ignore/ONDE-ENCONTRAR.md`:
+
+```markdown
+# Onde Encontrar — [Nome do PBI]
+
+## Resumo
+[2-3 frases: o que mudou na plataforma]
+
+## Por Página
+
+### [Nome da Página]
+**Caminho:** [Menu] → [Item] → [Aba]
+**URL:** `/caminho`
+
+- **[Funcionalidade]:** [Onde na tela + como interagir] (TASK-XX)
+
+## Backend/Processos (sem UI)
+| O quê | Tipo | Como verificar | Task |
+|-------|------|----------------|------|
+| API exportação | Endpoint | `GET /api/v1/exports/` | TASK-XX |
+
+## Referência Rápida
+| O quê | Onde | Como chegar |
+|-------|------|-------------|
+| ... | ... | ... |
+```
+
+---
+
+## PASSO 7 — Regras finais
+
+- NÃO invente funcionalidades fora do PBI
+- NÃO crie tasks para itens marcados "futuros"
+- SEMPRE referencie arquivos reais (não caminhos genéricos)
+- Padrões de referência = caminhos, NÃO blocos de código colados
+- Todos os arquivos criados juntos (tasks + progresso + onde-encontrar)
+- Use nomenclatura consistente (Glossário = fonte de verdade)
+
+### Finalização:
+Apresente resumo com: quantidade de tasks, ordem de execução, decisões importantes, ambiguidades resolvidas.
 
 Comece agora lendo o PBI.md e analisando o projeto.

@@ -1,3 +1,1 @@
-GCP-MCP: https://github.com/googleapis/gcloud-mcp
-
-Azure-MCP:https://github.com/microsoft/mcp
+MCP CLICKUP https://developer.clickup.com/docs/connect-an-ai-assistant-to-clickups-mcp-server
