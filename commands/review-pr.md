@@ -1,189 +1,206 @@
 ---
 description: "Comprehensive PR review using specialized agents"
 argument-hint: "[review-aspects]"
-allowed-tools: ["Bash", "Glob", "Grep", "Read", "Task"]
+allowed-tools: ["Bash", "Glob", "Grep", "Read", "Write", "Task", "AskUserQuestion"]
 ---
 
-# Comprehensive PR Review
+# PR Review — Consolidada e Pragmática
 
-Run a comprehensive pull request review using multiple specialized agents, each focusing on a different aspect of code quality.
+Review de pull request com agentes especializados. Todos os findings são consolidados por um agente final que publica **UM ÚNICO comentário** na PR, em português (pt-BR).
 
 **Review Aspects (optional):** "$ARGUMENTS"
 
-## Review Workflow:
+---
 
-1. **Determine Review Scope**
-   - Check git status to identify changed files
-   - Parse arguments to see if user requested specific review aspects
-   - Default: Run all applicable reviews
+## PRINCÍPIOS FUNDAMENTAIS
 
-2. **Available Review Aspects:**
+1. **Analisar APENAS código novo/modificado** — nunca criticar código existente que não foi tocado nesta PR.
+2. **Pragmatismo** — avaliar contra o nível atual do código do projeto, não contra perfeição teórica. Se o projeto já faz X de um jeito, não critique o dev por seguir o mesmo padrão.
+3. **Só reportar o que importa** — bugs reais, falhas de segurança, erros de lógica, quebras de contrato. NÃO reportar: preferências de estilo, refatorações "nice to have", melhorias teóricas.
+4. **Português correto** — revisar ortografia e gramática antes de publicar. Zero erros de escrita.
+5. **Um único comentário final** — agentes NÃO publicam individualmente.
 
-   - **comments** - Analyze code comment accuracy and maintainability
-   - **tests** - Review test coverage quality and completeness
-   - **errors** - Check error handling for silent failures
-   - **types** - Analyze type design and invariants (if new types added)
-   - **code** - General code review for project guidelines
-   - **simplify** - Simplify code for clarity and maintainability
-   - **all** - Run all applicable reviews (default)
+---
 
-3. **Identify Changed Files**
-   - Run `git diff --name-only` to see modified files
-   - Check if PR already exists: `gh pr view`
-   - Identify file types and what reviews apply
+## Step 0: Determinar PR
 
-4. **Determine Applicable Reviews**
+1. Verificar se existe `pr.md` na raiz do projeto.
+2. **Se existe**: extrair número/URL da PR.
+3. **Se não existe**: perguntar ao usuário com AskUserQuestion e salvar em `pr.md`.
+4. Validar com: `gh pr view <PR_NUMBER> --json number,title,url`
 
-   Based on changes:
-   - **Always applicable**: code-reviewer (general quality)
-   - **If test files changed**: pr-test-analyzer
-   - **If comments/docs added**: comment-analyzer
-   - **If error handling changed**: silent-failure-hunter
-   - **If types added/modified**: type-design-analyzer
-   - **After passing review**: code-simplifier (polish and refine)
+---
 
-5. **Launch Review Agents**
+## Step 1: Coletar diff
 
-   **Sequential approach** (one at a time):
-   - Easier to understand and act on
-   - Each report is complete before next
-   - Good for interactive review
+```bash
+# Arquivos alterados
+gh pr diff <PR_NUMBER> --name-only
 
-   **Parallel approach** (user can request):
-   - Launch all agents simultaneously
-   - Faster for comprehensive review
-   - Results come back together
-
-6. **Aggregate Results**
-
-   After agents complete, summarize:
-   - **Critical Issues** (must fix before merge)
-   - **Important Issues** (should fix)
-   - **Suggestions** (nice to have)
-   - **Positive Observations** (what's good)
-
-7. **Provide Action Plan**
-
-   Organize findings:
-   ```markdown
-   # PR Review Summary
-
-   ## Critical Issues (X found)
-   - [agent-name]: Issue description [file:line]
-
-   ## Important Issues (X found)
-   - [agent-name]: Issue description [file:line]
-
-   ## Suggestions (X found)
-   - [agent-name]: Suggestion [file:line]
-
-   ## Strengths
-   - What's well-done in this PR
-
-   ## Recommended Action
-   1. Fix critical issues first
-   2. Address important issues
-   3. Consider suggestions
-   4. Re-run review after fixes
-   ```
-
-## Usage Examples:
-
-**Full review (default):**
-```
-/pr-review-toolkit:review-pr
+# Diff completo (apenas código novo)
+gh pr diff <PR_NUMBER>
 ```
 
-**Specific aspects:**
+Salvar o diff em variável para passar aos agentes.
+
+---
+
+## Step 2: Lançar agentes de análise (em paralelo)
+
+Lançar os agentes aplicáveis **em background**. Cada agente recebe o diff e retorna findings em formato estruturado.
+
+### PROMPT OBRIGATÓRIO PARA TODOS OS AGENTES:
+
+Cada agente DEVE receber estas instruções no prompt:
+
 ```
-/pr-review-toolkit:review-pr tests errors
-# Reviews only test coverage and error handling
+REGRAS OBRIGATÓRIAS:
+1. Analise APENAS as linhas adicionadas/modificadas no diff abaixo. IGNORE código existente.
+2. Seja pragmático: avalie contra o nível do código atual do projeto, não contra perfeição.
+3. Só reporte problemas REAIS: bugs, falhas de segurança, erros de lógica, quebras de contrato.
+4. NÃO reporte: preferências de estilo, refatorações opcionais, melhorias teóricas.
+5. Para cada finding, retorne EXATAMENTE neste formato (sem nada extra):
 
-/pr-review-toolkit:review-pr comments
-# Reviews only code comments
+FINDING:
+- arquivo: <caminho/do/arquivo>
+- linha: <número exato da linha no diff>
+- severidade: critico | importante | sugestao
+- problema: <1 frase curta descrevendo o problema>
+- sugestao: <bloco de código corrigido>
 
-/pr-review-toolkit:review-pr simplify
-# Simplifies code after passing review
-```
+Se não encontrar problemas reais, retorne: NENHUM_PROBLEMA
 
-**Parallel review:**
-```
-/pr-review-toolkit:review-pr all parallel
-# Launches all agents in parallel
-```
-
-## Agent Descriptions:
-
-**comment-analyzer**:
-- Verifies comment accuracy vs code
-- Identifies comment rot
-- Checks documentation completeness
-
-**pr-test-analyzer**:
-- Reviews behavioral test coverage
-- Identifies critical gaps
-- Evaluates test quality
-
-**silent-failure-hunter**:
-- Finds silent failures
-- Reviews catch blocks
-- Checks error logging
-
-**type-design-analyzer**:
-- Analyzes type encapsulation
-- Reviews invariant expression
-- Rates type design quality
-
-**code-reviewer**:
-- Checks CLAUDE.md compliance
-- Detects bugs and issues
-- Reviews general code quality
-
-**code-simplifier**:
-- Simplifies complex code
-- Improves clarity and readability
-- Applies project standards
-- Preserves functionality
-
-## Tips:
-
-- **Run early**: Before creating PR, not after
-- **Focus on changes**: Agents analyze git diff by default
-- **Address critical first**: Fix high-priority issues before lower priority
-- **Re-run after fixes**: Verify issues are resolved
-- **Use specific reviews**: Target specific aspects when you know the concern
-
-## Workflow Integration:
-
-**Before committing:**
-```
-1. Write code
-2. Run: /pr-review-toolkit:review-pr code errors
-3. Fix any critical issues
-4. Commit
+DIFF PARA ANALISAR:
+<diff aqui>
 ```
 
-**Before creating PR:**
-```
-1. Stage all changes
-2. Run: /pr-review-toolkit:review-pr all
-3. Address all critical and important issues
-4. Run specific reviews again to verify
-5. Create PR
+### Agentes disponíveis:
+
+- **code-reviewer** — Bugs, lógica incorreta, quebras de contrato. SEMPRE lançar.
+- **silent-failure-hunter** — Erros engolidos, catch vazio, falhas silenciosas. Lançar se há try/catch no diff.
+- **pr-test-analyzer** — Cobertura de testes. Lançar se há arquivos de teste no diff.
+- **comment-analyzer** — Comentários incorretos/desatualizados. Lançar se há comentários novos no diff.
+- **type-design-analyzer** — Types/interfaces incorretos. Lançar se há tipos novos no diff.
+
+**NÃO lançar code-simplifier.** Simplificação não é escopo de review.
+
+---
+
+## Step 3: Consolidar findings (AGENTE FINAL)
+
+Após TODOS os agentes completarem, coletar os resultados e passar para um agente consolidador.
+
+O agente consolidador DEVE:
+
+1. **Deduplicar** — remover findings repetidos entre agentes
+2. **Validar linhas** — confirmar que cada finding aponta para uma linha real do diff
+3. **Filtrar ruído** — remover findings que são preferência de estilo ou refatoração teórica
+4. **Corrigir português** — garantir zero erros de ortografia e gramática
+5. **Ordenar por severidade** — críticos primeiro, depois importantes, depois sugestões
+6. **Formatar** o comentário final
+
+---
+
+## Step 4: Publicar UM ÚNICO comentário na PR
+
+```bash
+gh pr comment <PR_NUMBER> --body "$(cat <<'EOF'
+## 🔍 Review de Código
+
+### Resumo
+
+| Severidade | Quantidade |
+|------------|-----------|
+| 🔴 Crítico | X |
+| 🟡 Importante | X |
+| 💡 Sugestão | X |
+
+---
+
+### 🔴 Problemas Críticos
+
+📍 `arquivo.ts:42`
+Descrição curta do problema (1 frase).
+```suggestion
+código corrigido aqui
 ```
 
-**After PR feedback:**
-```
-1. Make requested changes
-2. Run targeted reviews based on feedback
-3. Verify issues are resolved
-4. Push updates
+---
+
+### 🟡 Problemas Importantes
+
+📍 `arquivo.ts:88`
+Descrição curta (1 frase).
+```suggestion
+código corrigido aqui
 ```
 
-## Notes:
+---
 
-- Agents run autonomously and return detailed reports
-- Each agent focuses on its specialty for deep analysis
-- Results are actionable with specific file:line references
-- Agents use appropriate models for their complexity
-- All agents available in `/agents` list
+### 💡 Sugestões
+
+📍 `arquivo.ts:120`
+Sugestão curta.
+```suggestion
+código corrigido aqui
+```
+
+---
+
+✅ **Pontos positivos:** <1-2 coisas bem feitas nesta PR>
+
+---
+*Review automatizada — analisando apenas código novo desta PR*
+EOF
+)"
+```
+
+### REGRAS DO COMENTÁRIO FINAL:
+
+- **Máximo 1 frase por finding.** O código sugerido é a entrega principal.
+- **Sempre `arquivo:linha`** com 📍.
+- **Sempre bloco ```suggestion```** com código corrigido. Sem sugestão de código = não é finding válido.
+- **Se nenhum problema encontrado**, publicar:
+
+```markdown
+## ✅ Review de Código
+
+Nenhum problema encontrado nesta PR. Código aprovado.
+
+---
+*Review automatizada — analisando apenas código novo desta PR*
+```
+
+- **Se há apenas sugestões** (nada crítico/importante), deixar claro que a PR está OK:
+
+```markdown
+## ✅ Review de Código — Aprovada com sugestões
+
+Nenhum problema bloqueante. Algumas sugestões opcionais abaixo.
+
+### 💡 Sugestões
+...
+```
+
+---
+
+## REGRAS GERAIS
+
+1. **Todos os comentários em português (pt-BR) com ortografia correta.**
+2. **Apenas UM comentário na PR** — o consolidado final. Agentes individuais NÃO publicam.
+3. **Apenas código NOVO do diff** — nunca criticar código existente.
+4. **Pragmatismo** — se o projeto já faz algo de um jeito, não critique o dev por seguir o padrão.
+5. **Cada finding deve ter linha exata + código sugerido.** Sem isso, não publique.
+6. **Máximo 15 findings** no comentário final. Se houver mais, priorizar por severidade e descartar os menores.
+7. Usar `gh pr comment` com heredoc para evitar problemas de escaping.
+
+---
+
+## Uso
+
+```
+/review-pr              # Review completa (default)
+/review-pr tests        # Apenas testes
+/review-pr errors       # Apenas tratamento de erros
+/review-pr code         # Apenas revisão geral
+```
